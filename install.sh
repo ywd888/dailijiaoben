@@ -17,7 +17,7 @@ CONFIG="/etc/sing-box/config.json"
 check_env() {
     [[ $EUID -ne 0 ]] && echo -e "${RED}错误: 必须使用 root 权限运行!${PLAIN}" && exit 1
     if ! command -v curl >/dev/null 2>&1; then
-        apt-get update && apt-get install -y curl || yum install -y -y curl
+        apt-get update && apt-get install -y curl || yum install -y curl
     fi
 }
 
@@ -34,7 +34,6 @@ gen_node() {
         systemctl enable sing-box
     fi
 
-    # 随机端口
     while :; do
         PORT=$(shuf -i 20000-60000 -n 1)
         [[ $(ss -tuln | grep -w "$PORT") ]] || break
@@ -46,13 +45,11 @@ gen_node() {
     IP=$(get_ip)
 
     mkdir -p /etc/sing-box
-
-    # 自签证书
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
         -keyout /etc/sing-box/key.pem -out /etc/sing-box/cert.pem \
         -subj "/CN=$SNI" >/dev/null 2>&1
 
-    # 配置 JSON
+    # 生成配置文件
     cat > $CONFIG <<EOF
 {
   "log": {"level": "info"},
@@ -84,7 +81,6 @@ EOF
         firewall-cmd --reload >/dev/null 2>&1
     fi
 
-    # 链接生成
     HOST=$IP
     [[ $IP == *":"* ]] && HOST="[$IP]"
     LINK="trojan://$PASS@$HOST:$PORT?security=tls&sni=$SNI&allowInsecure=1#Trojan-$IP"
