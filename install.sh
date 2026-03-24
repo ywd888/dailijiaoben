@@ -17,7 +17,7 @@ CONFIG="/etc/sing-box/config.json"
 check_env() {
     [[ $EUID -ne 0 ]] && echo -e "${RED}错误: 必须使用 root 权限运行!${PLAIN}" && exit 1
     if ! command -v curl >/dev/null 2>&1; then
-        apt-get update && apt-get install -y curl || yum install -y curl
+        apt-get update && apt-get install -y curl || yum install -y -y curl
     fi
 }
 
@@ -34,6 +34,7 @@ gen_node() {
         systemctl enable sing-box
     fi
 
+    # 随机端口
     while :; do
         PORT=$(shuf -i 20000-60000 -n 1)
         [[ $(ss -tuln | grep -w "$PORT") ]] || break
@@ -45,16 +46,19 @@ gen_node() {
     IP=$(get_ip)
 
     mkdir -p /etc/sing-box
+
+    # 自签证书
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
         -keyout /etc/sing-box/key.pem -out /etc/sing-box/cert.pem \
         -subj "/CN=$SNI" >/dev/null 2>&1
 
+    # 配置 JSON
     cat > $CONFIG <<EOF
 {
   "log": {"level": "info"},
   "inbounds": [{
     "type": "trojan",
-    "listen": "::",
+    "listen": ["0.0.0.0","::"],
     "listen_port": $PORT,
     "users": [{"password": "$PASS"}],
     "tls": {
@@ -69,20 +73,24 @@ gen_node() {
 EOF
 
     systemctl restart sing-box
-    
+
+    # 防火墙开放 TCP + UDP
     if command -v ufw >/dev/null 2>&1; then
         ufw allow $PORT/tcp >/dev/null 2>&1
+        ufw allow $PORT/udp >/dev/null 2>&1
     elif command -v firewall-cmd >/dev/null 2>&1; then
         firewall-cmd --permanent --add-port=$PORT/tcp >/dev/null 2>&1
+        firewall-cmd --permanent --add-port=$PORT/udp >/dev/null 2>&1
         firewall-cmd --reload >/dev/null 2>&1
     fi
 
+    # 链接生成
     HOST=$IP
     [[ $IP == *":"* ]] && HOST="[$IP]"
     LINK="trojan://$PASS@$HOST:$PORT?security=tls&sni=$SNI&allowInsecure=1#Trojan-$IP"
 
     echo -e "\n${GREEN}✅ 部署成功!${PLAIN}"
-    echo -e "${BLUE}链接:${PLAIN} $LINK"
+    echo -e "${BLUE}节点链接:${PLAIN} $LINK"
 }
 
 show_link() {
@@ -98,27 +106,36 @@ show_link() {
     fi
 }
 
-# 核心菜单逻辑 (修复了闭合问题)
-check_env
-clear
-echo -e "${YELLOW}================================${PLAIN}"
-echo -e "    Sing-box Trojan 管理脚本    "
-echo -e "${YELLOW}================================${PLAIN}"
-echo -e "  1. 新建/重置节点"
-echo -e "  2. 彻底删除节点"
-echo -e "  3. 查看当前链接"
-echo -e "  0. 退出"
-echo -e "${YELLOW}--------------------------------${PLAIN}"
-read -p "请选择: " choice
+delete_node() {
+    systemctl stop sing-box >/dev/null 2>&1
+    rm -rf /etc/sing-box
+    echo -e "${RED}节点已删除${PLAIN}"
+}
 
-case $choice in
-    1) gen_node ;;
-    2) 
-        systemctl stop sing-box >/dev/null 2>&1
-        rm -rf /etc/sing-box
-        echo -e "${RED}节点已卸载${PLAIN}"
-        ;;
-    3) show_link ;;
-    0) exit 0 ;;
-    *) echo -e "${RED}无效选项${PLAIN}" ;;
-esac
+menu() {
+    echo -e "${YELLOW}====== Sing-box Trojan 管理 ======${PLAIN}"
+    echo -e "1. 新建/重置节点"
+    echo -e "2. 彻底删除节点"
+    echo -e "3. 查看当前节点链接"
+    echo -e "0. 退出"
+    echo -e "${YELLOW}================================${PLAIN}"
+}
+
+main() {
+    check_env
+    while true; do
+        clear
+        menu
+        read -p "请选择: " choice
+        case "$choice" in
+            1) gen_node ;;
+            2) delete_node ;;
+            3) show_link ;;
+            0) exit 0 ;;
+            *) echo -e "${RED}无效选项${PLAIN}" ;;
+        esac
+        read -p "按回车继续..."
+    done
+}
+
+main
