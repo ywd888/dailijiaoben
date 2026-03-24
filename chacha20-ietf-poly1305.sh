@@ -119,7 +119,10 @@ main_menu() {
             1) new_node ;;
             2) show_link ;;
             3) delete_node ;;
-            0) exit 0 ;;
+            0) 
+                echo -e "${BLUE}退出菜单，返回 shell${PLAIN}"
+                break  # 改这里，不再 exit
+                ;;
             *) echo -e "${RED}无效选项${PLAIN}" ;;
         esac
     done
