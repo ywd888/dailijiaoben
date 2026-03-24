@@ -1,6 +1,12 @@
 #!/bin/bash
-
 CONFIG="/etc/sing-box/config.json"
+
+install_core() {
+  if ! command -v sing-box >/dev/null 2>&1; then
+    echo "安装 Sing-box..."
+    bash <(curl -fsSL https://sing-box.app/install.sh)
+  fi
+}
 
 gen_node() {
   PORT=$(shuf -i 20000-60000 -n 1)
@@ -18,7 +24,7 @@ gen_node() {
   "inbounds": [
     {
       "type": "trojan",
-      "listen": "::",
+      "listen": ["0.0.0.0","::"],
       "listen_port": $PORT,
       "users": [{"password": "$PASS"}],
       "tls": {
@@ -34,10 +40,10 @@ gen_node() {
 EOF
 
   openssl req -x509 -nodes -days 3650 \
-  -newkey rsa:2048 \
-  -keyout /etc/sing-box/key.pem \
-  -out /etc/sing-box/cert.pem \
-  -subj "/CN=$SNI" >/dev/null 2>&1
+    -newkey rsa:2048 \
+    -keyout /etc/sing-box/key.pem \
+    -out /etc/sing-box/cert.pem \
+    -subj "/CN=$SNI" >/dev/null 2>&1
 
   systemctl enable sing-box >/dev/null 2>&1
   systemctl restart sing-box
@@ -55,7 +61,7 @@ EOF
   LINK="trojan://$PASS@$HOST:$PORT?security=tls&sni=$SNI&allowInsecure=1#Trojan-$IP"
 
   echo ""
-  echo "✅ 创建成功"
+  echo "✅ 节点创建成功"
   echo "端口: $PORT"
   echo "密码: $PASS"
   echo "SNI: $SNI"
@@ -68,26 +74,6 @@ delete_node() {
   systemctl stop sing-box 2>/dev/null
   rm -rf /etc/sing-box
   echo "❌ 节点已删除"
-}
-
-change_sni() {
-  if [ ! -f "$CONFIG" ]; then
-    echo "❌ 未安装节点"
-    return
-  fi
-
-  read -p "输入新的 SNI: " NEWSNI
-
-  sed -i "s/server_name.*/server_name\": \"$NEWSNI\",/" $CONFIG
-
-  openssl req -x509 -nodes -days 3650 \
-  -newkey rsa:2048 \
-  -keyout /etc/sing-box/key.pem \
-  -out /etc/sing-box/cert.pem \
-  -subj "/CN=$NEWSNI" >/dev/null 2>&1
-
-  systemctl restart sing-box
-  echo "✅ SNI 已修改为: $NEWSNI"
 }
 
 show_node() {
@@ -113,19 +99,12 @@ show_node() {
   echo "$LINK"
 }
 
-install_core() {
-  if ! command -v sing-box >/dev/null 2>&1; then
-    bash <(curl -fsSL https://sing-box.app/install.sh)
-  fi
-}
-
 menu() {
   clear
   echo "====== Trojan 管理 ======"
   echo "1. 新建节点"
   echo "2. 删除节点"
-  echo "3. 修改 SNI"
-  echo "4. 查看节点"
+  echo "3. 查看节点"
   echo "0. 退出"
   echo "========================="
 }
@@ -138,8 +117,7 @@ while true; do
   case $choice in
     1) gen_node ;;
     2) delete_node ;;
-    3) change_sni ;;
-    4) show_node ;;
+    3) show_node ;;
     0) exit 0 ;;
     *) echo "无效选项" ;;
   esac
