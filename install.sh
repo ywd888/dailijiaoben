@@ -9,7 +9,7 @@ PORT=$(shuf -i 20000-60000 -n 1)
 PASS=$(openssl rand -base64 12 | tr -d /=+ | cut -c1-16)
 
 # 获取IP
-IP=$(curl -s ifconfig.me)
+IP=$(curl -s ipv4.icanhazip.com)
 
 echo "端口: $PORT"
 echo "密码: $PASS"
