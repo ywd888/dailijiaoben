@@ -55,7 +55,7 @@ gen_node() {
   "log": {"level": "info"},
   "inbounds": [{
     "type": "trojan",
-    "listen": ["0.0.0.0","::"],
+    "listen": "0.0.0.0",
     "listen_port": $PORT,
     "users": [{"password": "$PASS"}],
     "tls": {
