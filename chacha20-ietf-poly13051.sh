@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ================== 配置 ==================
-DOWNLOAD_URL="https://raw.githubusercontent.com/bqlpfy/ssr/refs/heads/master/ssserver"
-DEFAULT_PASSWORD="Z6dcK1YS0BXW"
+DOWNLOAD_URL="https://raw.githubusercontent.com/ywd888/dailijiaoben"
+DEFAULT_PASSWORD="Fas+fsYq/Pdy881lVTakDw"
 DEFAULT_PORT="15370"
 BINARY_NAME="ssserver"
 INSTALL_DIR="/usr/local/bin"
