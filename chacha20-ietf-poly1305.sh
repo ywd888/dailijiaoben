@@ -1,11 +1,7 @@
 #!/bin/bash
 
 # ================== 配置 ==================
-DOWNLOAD_URL="https://raw.githubusercontent.com/ywd888/dailijiaoben"
-DEFAULT_PASSWORD="Fas+fsYq/Pdy881lVTakDw"
-DEFAULT_PORT="15370"
-BINARY_NAME="ssserver"
-INSTALL_DIR="/usr/local/bin"
+DOWNLOAD_INSTALL_SH="https://raw.githubusercontent.com/bqlpfy/ssr/refs/heads/master/install.sh"
 SERVICE_NAME="ssserver"
 
 RED='\033[0;31m'
@@ -14,65 +10,25 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 PLAIN='\033[0m'
 
-# ================== 工具函数 ==================
 check_root() {
     [[ $EUID -ne 0 ]] && echo -e "${RED}错误: 必须使用 root 权限运行!${PLAIN}" && exit 1
-}
-
-enable_tfo() {
-    current_tfo=$(cat /proc/sys/net/ipv4/tcp_fastopen 2>/dev/null || echo "0")
-    [[ $current_tfo -lt 3 ]] && echo 3 > /proc/sys/net/ipv4/tcp_fastopen
 }
 
 get_ip() {
     curl -s4m 5 ipv4.icanhazip.com || curl -s6m 5 ipv6.icanhazip.com
 }
 
-download_ssserver() {
-    echo -e "${BLUE}下载 ssserver...${PLAIN}"
-    curl -L -o "$BINARY_NAME" "$DOWNLOAD_URL"
-    if [[ ! -s "$BINARY_NAME" ]]; then
-        echo -e "${RED}下载失败或文件为空!${PLAIN}"
-        exit 1
-    fi
-    chmod +x "$BINARY_NAME"
-    cp "$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
-    echo -e "${GREEN}下载完成并安装到 $INSTALL_DIR${PLAIN}"
-}
-
 # ================== 核心操作 ==================
 new_node() {
     echo -e "${BLUE}== 新建/重置节点 ==${PLAIN}"
-    download_ssserver
-
-    read -p "请输入密码 (默认: $DEFAULT_PASSWORD): " PASSWORD
-    PASSWORD=${PASSWORD:-$DEFAULT_PASSWORD}
-    read -p "请输入端口 (默认: $DEFAULT_PORT): " PORT
-    PORT=${PORT:-$DEFAULT_PORT}
-
-    # 创建 systemd 服务
-    cat > "/etc/systemd/system/$SERVICE_NAME.service" << EOF
-[Unit]
-Description=SSServer Service
-After=network.target
-
-[Service]
-Type=simple
-User=nobody
-Group=nogroup
-ExecStart=$INSTALL_DIR/$BINARY_NAME -s [::]:$PORT -k $PASSWORD -m chacha20-ietf-poly1305 -U --tcp-fast-open
-Restart=always
-RestartSec=3
-KillMode=mixed
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    systemctl daemon-reload
-    systemctl enable "$SERVICE_NAME"
-    systemctl restart "$SERVICE_NAME"
-
+    
+    # 调用官方安装脚本
+    echo -e "${BLUE}正在调用官方 install.sh 安装 SSServer...${PLAIN}"
+    curl -L "$DOWNLOAD_INSTALL_SH" -o ./install.sh
+    chmod +x ./install.sh
+    ./install.sh
+    
+    # 检查服务状态
     sleep 1
     if systemctl is-active --quiet "$SERVICE_NAME"; then
         echo -e "${GREEN}节点已部署成功!${PLAIN}"
@@ -84,9 +40,9 @@ EOF
 
 show_link() {
     if systemctl is-active --quiet "$SERVICE_NAME"; then
-        PORT=$(grep -oP '(?<=-s \[::\]:)\d+' <<< "$(cat /etc/systemd/system/$SERVICE_NAME.service)")
-        PASSWORD=$(grep -oP '(?<=-k )[^ ]+' <<< "$(cat /etc/systemd/system/$SERVICE_NAME.service)")
         IP=$(get_ip)
+        PORT=$(grep -oP '(?<=-p )\d+' <<< "$(systemctl cat $SERVICE_NAME | grep ExecStart)")
+        PASSWORD=$(grep -oP '(?<=-k )[^ ]+' <<< "$(systemctl cat $SERVICE_NAME | grep ExecStart)")
         LINK="ss://$(echo -n "chacha20-ietf-poly1305:$PASSWORD" | base64 -w0)@$IP:$PORT?#Node-$IP"
         echo -e "${GREEN}当前节点链接: ${PLAIN}$LINK"
     else
@@ -99,7 +55,7 @@ delete_node() {
     systemctl stop "$SERVICE_NAME" >/dev/null 2>&1
     systemctl disable "$SERVICE_NAME" >/dev/null 2>&1
     rm -f "/etc/systemd/system/$SERVICE_NAME.service"
-    rm -f "$INSTALL_DIR/$BINARY_NAME"
+    rm -f /usr/local/bin/ssserver
     systemctl daemon-reload
     echo -e "${RED}节点已删除${PLAIN}"
 }
@@ -107,7 +63,6 @@ delete_node() {
 # ================== 菜单 ==================
 main_menu() {
     check_root
-    enable_tfo
     while true; do
         echo -e "\n${YELLOW}=== SSServer 节点管理 ===${PLAIN}"
         echo -e "  1. 新建/重置节点"
@@ -119,10 +74,7 @@ main_menu() {
             1) new_node ;;
             2) show_link ;;
             3) delete_node ;;
-            0) 
-                echo -e "${BLUE}退出菜单，返回 shell${PLAIN}"
-                break  # 改这里，不再 exit
-                ;;
+            0) echo -e "${BLUE}退出菜单，返回 shell${PLAIN}" ; break ;;
             *) echo -e "${RED}无效选项${PLAIN}" ;;
         esac
     done
