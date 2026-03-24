@@ -10,4 +10,4 @@
 在你的 VPS 终端执行以下命令：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/ywd888/dailijiaoben/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/ywd888/dailijiaoben/main/chacha20-ietf-poly1305.sh)
