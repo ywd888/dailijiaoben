@@ -3,7 +3,6 @@
 # ====================================================
 # Project: Sing-box Trojan One-Click
 # Author: ywd888
-# Repo: https://github.com/ywd888/trojan
 # ====================================================
 
 RED='\033[0;31m'
@@ -23,7 +22,6 @@ check_env() {
 
 get_ip() {
     local ip=$(curl -s4m 5 ipv4.icanhazip.com || curl -s4m 5 ifconfig.me)
-    [[ -z "$ip" ]] && ip=$(curl -s6m 5 ipv6.icanhazip.com || curl -s6m 5 ifconfig.me)
     echo "$ip"
 }
 
@@ -34,14 +32,19 @@ gen_node() {
         systemctl enable sing-box
     fi
 
+    # 随机端口
     while :; do
         PORT=$(shuf -i 20000-60000 -n 1)
         [[ $(ss -tuln | grep -w "$PORT") ]] || break
     done
 
+    # 随机密码
     PASS=$(openssl rand -base64 12 | tr -d /=+ | cut -c1-16)
+    
+    # SNI 输入
     read -p "请输入 SNI (默认 apps.apple.com): " SNI
     SNI=${SNI:-apps.apple.com}
+
     IP=$(get_ip)
 
     mkdir -p /etc/sing-box
@@ -49,7 +52,7 @@ gen_node() {
         -keyout /etc/sing-box/key.pem -out /etc/sing-box/cert.pem \
         -subj "/CN=$SNI" >/dev/null 2>&1
 
-    # 生成配置文件
+    # 生成配置文件，注意 listen 只允许字符串
     cat > $CONFIG <<EOF
 {
   "log": {"level": "info"},
@@ -81,25 +84,10 @@ EOF
         firewall-cmd --reload >/dev/null 2>&1
     fi
 
-    HOST=$IP
-    [[ $IP == *":"* ]] && HOST="[$IP]"
-    LINK="trojan://$PASS@$HOST:$PORT?security=tls&sni=$SNI&allowInsecure=1#Trojan-$IP"
+    LINK="trojan://$PASS@$IP:$PORT?security=tls&sni=$SNI&allowInsecure=1#Trojan-$IP"
 
-    echo -e "\n${GREEN}✅ 部署成功!${PLAIN}"
+    echo -e "\n${GREEN}✅ 节点部署成功!${PLAIN}"
     echo -e "${BLUE}节点链接:${PLAIN} $LINK"
-}
-
-show_link() {
-    if [ -f "$CONFIG" ]; then
-        P=$(grep 'listen_port' $CONFIG | awk '{print $2}' | tr -d ', ')
-        PW=$(grep 'password' $CONFIG | awk -F'"' '{print $4}')
-        S=$(grep 'server_name' $CONFIG | awk -F'"' '{print $4}')
-        I=$(get_ip)
-        H=$I && [[ $I == *":"* ]] && H="[$I]"
-        echo -e "${GREEN}trojan://$PW@$H:$P?security=tls&sni=$S&allowInsecure=1#Trojan-$I${PLAIN}"
-    else
-        echo -e "${RED}未安装节点${PLAIN}"
-    fi
 }
 
 delete_node() {
@@ -108,11 +96,23 @@ delete_node() {
     echo -e "${RED}节点已删除${PLAIN}"
 }
 
+show_link() {
+    if [ -f "$CONFIG" ]; then
+        P=$(grep 'listen_port' $CONFIG | awk '{print $2}' | tr -d ', ')
+        PW=$(grep 'password' $CONFIG | awk -F'"' '{print $4}')
+        S=$(grep 'server_name' $CONFIG | awk -F'"' '{print $4}')
+        I=$(get_ip)
+        echo -e "${GREEN}trojan://$PW@$I:$P?security=tls&sni=$S&allowInsecure=1#Trojan-$I${PLAIN}"
+    else
+        echo -e "${RED}未安装节点${PLAIN}"
+    fi
+}
+
 menu() {
     echo -e "${YELLOW}====== Sing-box Trojan 管理 ======${PLAIN}"
     echo -e "1. 新建/重置节点"
-    echo -e "2. 彻底删除节点"
-    echo -e "3. 查看当前节点链接"
+    echo -e "2. 删除节点"
+    echo -e "3. 查看节点链接"
     echo -e "0. 退出"
     echo -e "${YELLOW}================================${PLAIN}"
 }
