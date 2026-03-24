@@ -14,4 +14,4 @@
 在你的 VPS 终端执行以下命令：
 
 ```bash
-bash <(curl -fsSL [https://raw.githubusercontent.com/ywd888/trojan/main/install.sh](https://raw.githubusercontent.com/ywd888/trojan/main/install.sh))
+bash <(curl -fsSL https://raw.githubusercontent.com/ywd888/trojan/main/install.sh)
