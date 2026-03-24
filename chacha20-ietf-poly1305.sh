@@ -21,33 +21,30 @@ check_root() {
 
 enable_tfo() {
     current_tfo=$(cat /proc/sys/net/ipv4/tcp_fastopen 2>/dev/null || echo "0")
-    if [[ $current_tfo -lt 3 ]]; then
-        echo 3 > /proc/sys/net/ipv4/tcp_fastopen
-        if ! grep -q "net.ipv4.tcp_fastopen" /etc/sysctl.conf; then
-            echo "net.ipv4.tcp_fastopen = 3" >> /etc/sysctl.conf
-        else
-            sed -i 's/^net.ipv4.tcp_fastopen.*/net.ipv4.tcp_fastopen = 3/' /etc/sysctl.conf
-        fi
-    fi
+    [[ $current_tfo -lt 3 ]] && echo 3 > /proc/sys/net/ipv4/tcp_fastopen
 }
 
 get_ip() {
     curl -s4m 5 ipv4.icanhazip.com || curl -s6m 5 ipv6.icanhazip.com
 }
 
+download_ssserver() {
+    echo -e "${BLUE}下载 ssserver...${PLAIN}"
+    curl -L -o "$BINARY_NAME" "$DOWNLOAD_URL"
+    if [[ ! -s "$BINARY_NAME" ]]; then
+        echo -e "${RED}下载失败或文件为空!${PLAIN}"
+        exit 1
+    fi
+    chmod +x "$BINARY_NAME"
+    cp "$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
+    echo -e "${GREEN}下载完成并安装到 $INSTALL_DIR${PLAIN}"
+}
+
 # ================== 核心操作 ==================
 new_node() {
     echo -e "${BLUE}== 新建/重置节点 ==${PLAIN}"
-    
-    # 下载 ssserver
-    if [ ! -f "$INSTALL_DIR/$BINARY_NAME" ]; then
-        echo "下载 ssserver..."
-        curl -L -o "$BINARY_NAME" "$DOWNLOAD_URL"
-        chmod +x "$BINARY_NAME"
-        cp "$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
-    fi
+    download_ssserver
 
-    # 获取密码和端口
     read -p "请输入密码 (默认: $DEFAULT_PASSWORD): " PASSWORD
     PASSWORD=${PASSWORD:-$DEFAULT_PASSWORD}
     read -p "请输入端口 (默认: $DEFAULT_PORT): " PORT
@@ -76,8 +73,13 @@ EOF
     systemctl enable "$SERVICE_NAME"
     systemctl restart "$SERVICE_NAME"
 
-    echo -e "${GREEN}节点已部署成功!${PLAIN}"
-    show_link
+    sleep 1
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+        echo -e "${GREEN}节点已部署成功!${PLAIN}"
+        show_link
+    else
+        echo -e "${RED}节点启动失败，请检查日志: sudo journalctl -u $SERVICE_NAME -f${PLAIN}"
+    fi
 }
 
 show_link() {
